@@ -7,3 +7,4 @@
  [SVD全连接层分解的caffe操作](https://blog.csdn.net/zs19960124/article/details/84852538)<br>
  [张量分解实现神经网络加速有SVD，CP分解和Tucker分解（也称为高阶SVD或其他名称）](https://www.leiphone.com/news/201802/tSRogb7n8SFAQ6Yj.html)<br>
  [深度学习网络加速与压缩系列文章](https://blog.csdn.net/wspba/article/details/75671573)<br>
+ [四种常用加速方法综述](https://www.jianshu.com/p/7dea4b7ca5bf)
