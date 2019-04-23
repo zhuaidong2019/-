@@ -1,0 +1,65 @@
+import sys
+import caffe
+import numpy as np
+root='/home/zhuaidong/prunefinal/'
+net=caffe.Net(root+'TestModel.prototxt',root+'TestModel.caffemodel',caffe.TEST)
+net_svd=caffe.Net(root+'svd.prototxt',root+'TestModel.caffemodel',caffe.TEST)
+
+a=net.params['fc5_'][0].data  
+
+# 计算特征值和特征向量
+eval_sigma1,evec_u = np.linalg.eigh(a.dot(a.T))
+#降序排列后，逆序输出
+eval1_sort_idx = np.argsort(eval_sigma1)[::-1]
+# 将特征值对应的特征向量也对应排好序
+eval_sigma1 = np.sort(eval_sigma1)[::-1]
+evec_u = evec_u[:,eval1_sort_idx]
+# 计算奇异值矩阵的逆
+eval_sigma1 = np.sqrt(eval_sigma1)
+eval_sigma1_inv = np.linalg.inv(np.diag(eval_sigma1))
+# 计算右奇异矩阵
+evec_part_v = eval_sigma1_inv.dot((evec_u.T).dot(a))
+# evec_u, eval_sigma1, evec_part_v分别为左奇异矩阵，所有奇异值，右奇异矩阵
+
+k=150
+U_=evec_u[:,:k]
+s_=eval_sigma1[:k]
+V_=evec_part_v[:k,:]
+L = np.dot(np.diag(s_), V_)
+
+
+
+net_svd.params['fc5_svd_v'][0].data[...] = L
+net_svd.params['fc5_svd_u'][0].data[...] = U_
+net_svd.params['fc5_svd_u'][1].data[...] = net.params['fc5_'][1].data
+
+keys={'conv1_1_1','conv1_2_1','conv1_2_2','conv1_3_1','conv1_3_2','conv1_3_3','conv2_1','conv2_2','conv2_3','conv2_4',
+      'conv2_5','conv2_6','conv2_7','conv2_8','conv3_1_1b','conv3_1_1','conv3_1_2','conv3_2_1','conv3_2_2','conv3_3_1',
+     'conv3_3_2','conv3_4_1','conv3_4_2','conv3_5_1','conv3_5_2','conv3_6_1','conv3_6_2','conv4_1_1b','conv4_1_1',
+      'conv4_1_2','conv4_2_1','conv4_2_2','conv4_3_1','conv4_3_2','conv4_4_1','conv4_4_2','conv4_5_1','conv4_6_1',
+      'conv4_6_2','conv5_1_1b','conv5_1_1','conv5_1_2','conv5_2_1','conv5_2_2','conv5_3_1','conv5_3_2','conv5_4_1',
+     'conv5_4_2','conv5_5_1','conv5_5_2','conv5_6_1','conv5_6_2'}
+
+def weight_0(net,layer):
+    caffe.set_mode_cpu()
+    weight = net.params[layer][0].data
+    bias = net.params[layer][1].data
+    sum_l1=[]
+    for i in range(weight.shape[0]):
+        for j in range(weight.shape[1]):
+            sum_l1.append((i,j,np.sum(abs(weight[i,j,:,:]))))#i是核的顺序,
+ 
+    weight_l1 = []
+    for i in sum_l1:
+        weight_l1.append(i[2]) #得到仅含有l1范数的列表
+    min1=min(weight_l1)
+    for i,weight_sum in enumerate(weight_l1):
+        if weight_sum == min1:
+            out_channel_sort = sum_l1[i][0]
+            input_channel_sort = sum_l1[i][1]
+            weight[out_channel_sort, input_channel_sort, :, :] = 0 #小于阈值的,weight置0
+
+for k in keys:
+    weight_0(net_svd,k)
+
+net_svd.save('svd.caffemodel')
